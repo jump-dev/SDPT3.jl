@@ -13,6 +13,26 @@ export sdpt3
 #    end
 #end
 
+# See Solver/sqlparameters.m
+const ALLOWED_OPTIONS = [
+    "vers",
+    "gam",
+    "predcorr",
+    "expon",
+    "gaptol",
+    "inftol",
+    "steptol",
+    "maxit",
+    "printlevel",
+    "stoplevel",
+    "scale_data",
+    "rmdepconstr",
+    "smallblkdim",
+    "parbarrier",
+    "schurfun",
+    "schurfun_par"
+]
+
 # TODO log in objective, OPTION, initial iterates X0, y0, Z0
 # Solve the primal/dual pair
 # min c'x,      max b'y
@@ -21,6 +41,7 @@ export sdpt3
 function sdpt3(blk::Matrix,
                At::Vector{<:Union{Matrix{Float64}, SparseMatrixCSC{Float64}}},
                C::Vector{Vector{Float64}}, b::Vector{Float64})
+               #C::Vector{<:Union{Vector{Float64}, SparseVector{Float64}}}, b::Vector{Float64})
     @assert all(i -> size(At[i], 2) == length(b), 1:length(At))
     #@assert all(i -> size(A[i], 1) == dim(blk[i, 1], blk[i, 2]), 1:length(A))
     #@assert all(i -> length(C[i], 1) == dim(blk[i, 1], blk[i, 2]), 1:length(A))
@@ -28,5 +49,7 @@ function sdpt3(blk::Matrix,
     obj, X, y, Z, info, runhist = mxcall(:sdpt3, 6, blk, At, C, b)
     return obj, X, y, Z, info, runhist
 end
+
+include("MOI_wrapper.jl")
 
 end # module
