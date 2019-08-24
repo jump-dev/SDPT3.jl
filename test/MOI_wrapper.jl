@@ -33,6 +33,12 @@ end
 
 @testset "Unit" begin
     MOIT.unittest(bridged, config, [
+        # Get `termcode` -1, i.e. "relative gap < infeasibility".
+        "solve_blank_obj",
+        # Get `termcode` 3, i.e. "norm(X) or norm(Z) diverging".
+        "solve_affine_equalto",
+        # Fails because there is no constraint.
+        "solve_unbounded_model",
         # `TimeLimitSec` not supported.
         "time_limit_sec",
         # Quadratic functions are not supported
@@ -43,24 +49,14 @@ end
         "solve_zero_one_with_bounds_2",
         "solve_zero_one_with_bounds_3"])
 end
-#@testset "Continuous Linear" begin
-#    # See explanation in `MOI/test/Bridges/lazy_bridge_optimizer.jl`.
-#    # This is to avoid `Variable.VectorizeBridge` which does not support
-#    # `ConstraintSet` modification.
-#    MOIB.remove_bridge(bridged, MOIB.Constraint.ScalarSlackBridge{Float64})
-#    MOIT.contlineartest(bridged, config, [
-#        # Finds `MOI.ALMOST_OPTIMAL` instead of `MOI.OPTIMAL`
-#        "linear10b"
-#    ])
-#end
-#@testset "Continuous Conic" begin
-#    MOIT.contconictest(bridged, config, [
-#        # Finds `MOI.OPTIMAL` instead of `MOI.INFEASIBLE`.
-#        "soc3",
-#        # See https://github.com/coin-or/Csdp/issues/11
-#        "rotatedsoc1v",
-#        # Missing bridges
-#        "rootdets",
-#        # Does not support power and exponential cone
-#        "pow", "logdet", "exp"])
-#end
+@testset "Continuous Linear" begin
+    # See explanation in `MOI/test/Bridges/lazy_bridge_optimizer.jl`.
+    # This is to avoid `Variable.VectorizeBridge` which does not support
+    # `ConstraintSet` modification.
+    MOIB.remove_bridge(bridged, MOIB.Constraint.ScalarSlackBridge{Float64})
+    MOIT.contlineartest(bridged, config, String[
+        # Throws error: total dimension of C should be > length(b)
+        "linear15",
+        "partial_start"
+    ])
+end

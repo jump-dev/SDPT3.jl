@@ -44,7 +44,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     nneg_Z::Vector{Float64}
     info::Dict{String, Any}
     runhist::Dict{String, Any}
-    status::Int
+    status::Union{Nothing, Int}
     solve_time::Float64
 
     silent::Bool
@@ -57,7 +57,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             1, 0.0,
             NaN, NaN, Float64[], Float64[], Float64[], Float64[], Float64[],
             Dict{String, Any}(), Dict{String, Any}(),
-            -1, NaN,
+            nothing, NaN,
             false, Dict{Symbol, Any}())
         for (key, value) in kwargs
             MOI.set(optimizer, MOI.RawParameter(key), value)
@@ -87,16 +87,6 @@ end
 MOI.get(optimizer::Optimizer, ::MOI.Silent) = optimizer.silent
 
 MOI.get(::Optimizer, ::MOI.SolverName) = "SDPT3"
-# TODO this is a copy-paste from CSDP at the moment
-const RAW_STATUS = [
-    "Problem solved to optimality.",
-    "Problem is primal infeasible.",
-    "Problem is dual infeasible."
-]
-
-function MOI.get(optimizer::Optimizer, ::MOI.RawStatusString)
-    return RAW_STATUS[optimizer.status + 1]
-end
 function MOI.get(optimizer::Optimizer, ::MOI.SolveTime)
     return optimizer.solve_time
 end
@@ -141,7 +131,7 @@ function MOI.empty!(optimizer::Optimizer)
     empty!(optimizer.nneg_Z)
     empty!(optimizer.info)
     empty!(optimizer.runhist)
-    optimizer.status = -1
+    optimizer.status = nothing
     optimizer.solve_time = NaN
 end
 
@@ -203,6 +193,10 @@ MOI.supports(::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float
 function MOI.set(optimizer::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
                  func::MOI.ScalarAffineFunction{Float64})
     optimizer.objective_constant = MOI.constant(func)
+    empty!(optimizer.free_Cvar)
+    empty!(optimizer.free_Cval)
+    empty!(optimizer.nneg_Cvar)
+    empty!(optimizer.nneg_Cval)
     for term in func.terms
         info = optimizer.variable_info[term.variable_index.value]
         if info.variable_type == FREE
@@ -248,9 +242,6 @@ function MOI.add_constraint(optimizer::Optimizer, func::MOI.ScalarAffineFunction
     return AFFEQ(con)
 end
 
-_vec(x::Vector) = x
-_vec(x::Float64) = [x]
-
 function MOI.optimize!(optimizer::Optimizer)
     options = optimizer.options
     if optimizer.silent
@@ -258,73 +249,122 @@ function MOI.optimize!(optimizer::Optimizer)
         options[:printlevel] = 0
     end
 
-    blk = [
-        "l" optimizer.num_nneg
-        "u" optimizer.num_free
-    ]
+    blk = Matrix{Any}(undef, 0, 2)
+    blkt_vec = Any[]
     m = length(optimizer.b)
-    nneg_A = sparse(optimizer.nneg_Avar, optimizer.nneg_Acon, optimizer.nneg_Aval, optimizer.num_nneg, m)
-    free_A = sparse(optimizer.free_Avar, optimizer.free_Acon, optimizer.free_Aval, optimizer.num_free, m)
-    At = [nneg_A, free_A]
-    nneg_C = Vector(sparsevec(optimizer.nneg_Cvar, optimizer.nneg_Cval, optimizer.num_nneg))
-    free_C = Vector(sparsevec(optimizer.free_Cvar, optimizer.free_Cval, optimizer.num_free))
-    C = [nneg_C, free_C]
+    At = SparseArrays.SparseMatrixCSC{Float64,Int}[]
+    # FIXME I get a strange failure with sparse vectors, need to investigate
+    C = Vector{Float64}[]
+    if !iszero(optimizer.num_nneg)
+        push!(At, sparse(optimizer.nneg_Avar, optimizer.nneg_Acon, optimizer.nneg_Aval, optimizer.num_nneg, m))
+        push!(C, Vector(sparsevec(optimizer.nneg_Cvar, optimizer.nneg_Cval, optimizer.num_nneg)))
+        blk = vcat(blk, ["l" optimizer.num_nneg])
+    end
+    if !iszero(optimizer.num_free)
+        push!(At, sparse(optimizer.free_Avar, optimizer.free_Acon, optimizer.free_Aval, optimizer.num_free, m))
+        push!(C, Vector(sparsevec(optimizer.free_Cvar, optimizer.free_Cval, optimizer.num_free)))
+        blk = vcat(blk, ["u" optimizer.num_free])
+    end
 
-    # TODO use options
+    options = optimizer.options
+    if optimizer.silent
+        options = copy(options)
+        options[:printlevel] = 0
+    end
+
     obj, X, y, Z, optimizer.info, optimizer.runhist = sdpt3(
-        blk, At, C, optimizer.b)
+        blk, At, C, optimizer.b; options...)
+
     optimizer.primal_objective_value, optimizer.dual_objective_value = obj
-    optimizer.nneg_X = _vec(X[1])
-    optimizer.free_X = _vec(X[2])
-    optimizer.y = _vec(y)
-    optimizer.nneg_Z = _vec(Z[1])
-    optimizer.free_Z = _vec(Z[2])
+    k = 0
+    if iszero(optimizer.num_nneg)
+        empty!(optimizer.nneg_X)
+        empty!(optimizer.nneg_Z)
+    else
+        k += 1
+        optimizer.nneg_X = X[k]
+        optimizer.nneg_Z = Z[k]
+    end
+    if iszero(optimizer.num_free)
+        empty!(optimizer.free_X)
+        empty!(optimizer.free_Z)
+    else
+        k += 1
+        optimizer.free_X = X[k]
+        optimizer.free_Z = Z[k]
+    end
+    optimizer.y = y
     optimizer.status = optimizer.info["termcode"]
     optimizer.solve_time = optimizer.info["cputime"]
 end
 
-function MOI.get(optimizer::Optimizer, ::MOI.TerminationStatus)
-    status = optimizer.status
-    if status == -1
-        return MOI.OPTIMIZE_NOT_CALLED
-    elseif status == 0
-        return MOI.OPTIMAL
-    elseif status == 1
-        return MOI.INFEASIBLE
-    elseif status == 2
-        return MOI.DUAL_INFEASIBLE
+const RAW_STATUS = [
+    "norm(X) or norm(Z) diverging",
+    "dual   problem is suspected to be infeasible",
+    "primal problem is suspected to be infeasible",
+    "max(relative gap,infeasibility) < gaptol",
+    "relative gap < infeasibility",
+    "lack of progress in predictor or corrector",
+    "X or Z not positive definite",
+    "difficulty in computing predictor or corrector direction",
+    "progress in relative gap or infeasibility is bad",
+    "maximum number of iterations reached",
+    "primal infeasibility has deteriorated too much",
+    "progress in relative gap has deteriorated",
+    "lack of progress in infeasibility"
+]
+function MOI.get(optimizer::Optimizer, ::MOI.RawStatusString)
+    if optimizer.status === nothing
+        throw(MOI.OptimizeNotCalled())
     else
-        error("Unrecognized status $status.")
+        return RAW_STATUS[4 - optimizer.status]
+    end
+end
+
+const TERMINATION_STATUS = [
+    MOI.NUMERICAL_ERROR,
+    MOI.DUAL_INFEASIBLE,
+    MOI.INFEASIBLE,
+    MOI.OPTIMAL,
+    MOI.OTHER_ERROR, # TODO what does `relative gap < infeasibility` mean ?
+    MOI.SLOW_PROGRESS,
+    MOI.NUMERICAL_ERROR,
+    MOI.NUMERICAL_ERROR,
+    MOI.SLOW_PROGRESS,
+    MOI.ITERATION_LIMIT,
+    MOI.NUMERICAL_ERROR,
+    MOI.NUMERICAL_ERROR,
+    MOI.SLOW_PROGRESS
+]
+function MOI.get(optimizer::Optimizer, ::MOI.TerminationStatus)
+    if optimizer.status === nothing
+        return MOI.OPTIMIZE_NOT_CALLED
+    else
+        return TERMINATION_STATUS[4 - optimizer.status]
     end
 end
 
 function MOI.get(optimizer::Optimizer, ::MOI.PrimalStatus)
     status = optimizer.status
-    if status == -1
-        return MOI.NO_SOLUTION
-    elseif status == 0
+    if status == 0
         return MOI.FEASIBLE_POINT
-    elseif status == 1
-        return MOI.NO_SOLUTION
     elseif status == 2
         return MOI.INFEASIBILITY_CERTIFICATE
     else
-        error("Unrecognized status $status.")
+        # TODO is there solution available in some case here ?
+        return MOI.NO_SOLUTION
     end
 end
 
 function MOI.get(optimizer::Optimizer, ::MOI.DualStatus)
     status = optimizer.status
-    if status == -1
-        return MOI.NO_SOLUTION
-    elseif status == 0
+    if status == 0
         return MOI.FEASIBLE_POINT
     elseif status == 1
         return MOI.INFEASIBILITY_CERTIFICATE
-    elseif status == 2
-        return MOI.NO_SOLUTION
     else
-        error("Unrecognized status $status.")
+        # TODO is there solution available in some case here ?
+        return MOI.NO_SOLUTION
     end
 end
 
