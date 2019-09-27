@@ -20,7 +20,7 @@ model = Model(with_optimizer(SDPT3.Optimizer, printlevel=0))
 
 You can install `SDPT3.jl` through the Julia package manager:
 ```julia
-] add https://github.com/blegat/SDPT3.jl.git
+] add https://github.com/JuliaOpt/SDPT3.jl.git
 ```
 but you first need to make sure that you satisfy the requirements of the
 [MATLAB.jl](https://github.com/JuliaInterop/MATLAB.jl) Julia package and that
