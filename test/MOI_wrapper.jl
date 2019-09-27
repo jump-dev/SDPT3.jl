@@ -62,7 +62,7 @@ end
 end
 @testset "Continuous Quadratic" begin
     MOIT.contquadratictest(BRIDGED, CONFIG, [
-        # FIXME CachingOptimizer does not implement deletion of vector of variables and uses the fallback. Need upstream MOI fix.
+        # FIXME Should be fixed by https://github.com/JuliaOpt/MathOptInterface.jl/pull/905
         "qp2", "qp3",
         # Non-convex
         "ncqcp",
