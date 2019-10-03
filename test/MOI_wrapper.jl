@@ -33,6 +33,8 @@ end
 
 @testset "Unit" begin
     MOIT.unittest(BRIDGED, CONFIG, [
+        # Need MOI v0.9.5
+        "solve_result_index",
         # Get `termcode` -1, i.e. "relative gap < infeasibility".
         "solve_blank_obj",
         # Get `termcode` 3, i.e. "norm(X) or norm(Z) diverging".
@@ -41,8 +43,8 @@ end
         "solve_unbounded_model",
         # `TimeLimitSec` not supported.
         "time_limit_sec",
-        # Quadratic functions are not supported
-        "solve_qcp_edge_cases", "solve_qp_edge_cases",
+        # `NumberOfThreads` not supported.
+        "number_threads",
         # Integer and ZeroOne sets are not supported
         "solve_integer_edge_cases", "solve_objbound_edge_cases",
         "solve_zero_one_with_bounds_1",
@@ -62,8 +64,6 @@ end
 end
 @testset "Continuous Quadratic" begin
     MOIT.contquadratictest(BRIDGED, CONFIG, [
-        # FIXME Should be fixed by https://github.com/JuliaOpt/MathOptInterface.jl/pull/905
-        "qp2", "qp3",
         # Non-convex
         "ncqcp",
         # Quadratic function not strictly convex
@@ -75,8 +75,6 @@ end
         "lin2f",
         # `MOI.NUMERICAL_ERROR`
         "lin4",
-        # `MOI.NUMERICAL_ERROR`: should be fixed by a RSOC->SOC Variable bridge
-        "rotatedsoc2",
         # `ExponentialCone` and `PowerCone` not supported.
         "exp", "dualexp", "pow", "dualpow", "logdet",
         # `RootDetConeSquare` -> `RootDetConeTriangle` bridge missing.

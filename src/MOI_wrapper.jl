@@ -506,7 +506,8 @@ function MOI.get(optimizer::Optimizer, ::MOI.TerminationStatus)
     end
 end
 
-function MOI.get(optimizer::Optimizer, ::MOI.PrimalStatus)
+function MOI.get(optimizer::Optimizer, attr::MOI.PrimalStatus)
+    MOI.check_result_index_bounds(optimizer, attr)
     status = optimizer.status
     if status == 0
         return MOI.FEASIBLE_POINT
@@ -518,7 +519,8 @@ function MOI.get(optimizer::Optimizer, ::MOI.PrimalStatus)
     end
 end
 
-function MOI.get(optimizer::Optimizer, ::MOI.DualStatus)
+function MOI.get(optimizer::Optimizer, attr::MOI.DualStatus)
+    MOI.check_result_index_bounds(optimizer, attr)
     status = optimizer.status
     if status == 0
         return MOI.FEASIBLE_POINT
@@ -530,15 +532,18 @@ function MOI.get(optimizer::Optimizer, ::MOI.DualStatus)
     end
 end
 
-MOI.get(m::Optimizer, ::MOI.ResultCount) = 1
-function MOI.get(m::Optimizer, ::MOI.ObjectiveValue)
-    return m.objective_sign * m.primal_objective_value + m.objective_constant
+MOI.get(::Optimizer, ::MOI.ResultCount) = 1
+function MOI.get(optimizer::Optimizer, attr::MOI.ObjectiveValue)
+    MOI.check_result_index_bounds(optimizer, attr)
+    return optimizer.objective_sign * optimizer.primal_objective_value + optimizer.objective_constant
 end
-function MOI.get(m::Optimizer, ::MOI.DualObjectiveValue)
-    return m.objective_sign * m.dual_objective_value + m.objective_constant
+function MOI.get(optimizer::Optimizer, attr::MOI.DualObjectiveValue)
+    MOI.check_result_index_bounds(optimizer, attr)
+    return optimizer.objective_sign * optimizer.dual_objective_value + optimizer.objective_constant
 end
 
-function MOI.get(optimizer::Optimizer, ::MOI.VariablePrimal, vi::MOI.VariableIndex)
+function MOI.get(optimizer::Optimizer, attr::MOI.VariablePrimal, vi::MOI.VariableIndex)
+    MOI.check_result_index_bounds(optimizer, attr)
     info = optimizer.variable_info[vi.value]
     if info.variable_type == FREE
         return optimizer.free_X[info.index_in_cone]
@@ -552,8 +557,9 @@ function MOI.get(optimizer::Optimizer, ::MOI.VariablePrimal, vi::MOI.VariableInd
     end
 end
 
-function MOI.get(optimizer::Optimizer, ::MOI.ConstraintPrimal,
+function MOI.get(optimizer::Optimizer, attr::MOI.ConstraintPrimal,
                  ci::MOI.ConstraintIndex{MOI.VectorOfVariables, S}) where S<:SupportedSets
+    MOI.check_result_index_bounds(optimizer, attr)
     info = optimizer.variable_info[ci.value]
     if info.variable_type == FREE
         error("No constraint primal for free variables.")
@@ -567,12 +573,14 @@ function MOI.get(optimizer::Optimizer, ::MOI.ConstraintPrimal,
         return optimizer.psdc_X[info.cone_index]
     end
 end
-function MOI.get(optimizer::Optimizer, ::MOI.ConstraintPrimal, ci::AFFEQ)
+function MOI.get(optimizer::Optimizer, attr::MOI.ConstraintPrimal, ci::AFFEQ)
+    MOI.check_result_index_bounds(optimizer, attr)
     return optimizer.b[ci.value]
 end
 
-function MOI.get(optimizer::Optimizer, ::MOI.ConstraintDual,
+function MOI.get(optimizer::Optimizer, attr::MOI.ConstraintDual,
                  ci::MOI.ConstraintIndex{MOI.VectorOfVariables, S}) where S<:SupportedSets
+    MOI.check_result_index_bounds(optimizer, attr)
     info = optimizer.variable_info[ci.value]
     if info.variable_type == FREE
         error("No constraint dual for free variables.")
@@ -586,6 +594,7 @@ function MOI.get(optimizer::Optimizer, ::MOI.ConstraintDual,
         return optimizer.psdc_Z[info.cone_index]
     end
 end
-function MOI.get(optimizer::Optimizer, ::MOI.ConstraintDual, ci::AFFEQ)
+function MOI.get(optimizer::Optimizer, attr::MOI.ConstraintDual, ci::AFFEQ)
+    MOI.check_result_index_bounds(optimizer, attr)
     return optimizer.y[ci.value]
 end
