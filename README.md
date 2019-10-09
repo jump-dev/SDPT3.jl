@@ -1,6 +1,6 @@
 # SDPT3
 
-`SDPT3.jl` is an interface to the **[SDPT3](http://www.math.nus.edu.sg/~mattohkc/SDPT3.html)**
+`SDPT3.jl` is an interface to the **[SDPT3](https://blog.nus.edu.sg/mattohkc/softwares/sdpt3/)**
 solver. It exports the `sdpt3` function that is a thin wrapper on top of the
 `sdpt3` MATLAB function and use it to define the `SDPT3.Optimizer` object that
 implements the solver-independent `MathOptInterface` API.
