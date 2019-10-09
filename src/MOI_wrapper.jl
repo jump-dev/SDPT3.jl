@@ -507,7 +507,9 @@ function MOI.get(optimizer::Optimizer, ::MOI.TerminationStatus)
 end
 
 function MOI.get(optimizer::Optimizer, attr::MOI.PrimalStatus)
-    MOI.check_result_index_bounds(optimizer, attr)
+    if attr.N > MOI.get(optimizer, MOI.ResultCount())
+        return MOI.NO_SOLUTION
+    end
     status = optimizer.status
     if status == 0
         return MOI.FEASIBLE_POINT
@@ -520,7 +522,9 @@ function MOI.get(optimizer::Optimizer, attr::MOI.PrimalStatus)
 end
 
 function MOI.get(optimizer::Optimizer, attr::MOI.DualStatus)
-    MOI.check_result_index_bounds(optimizer, attr)
+    if attr.N > MOI.get(optimizer, MOI.ResultCount())
+        return MOI.NO_SOLUTION
+    end
     status = optimizer.status
     if status == 0
         return MOI.FEASIBLE_POINT
