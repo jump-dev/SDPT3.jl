@@ -33,7 +33,8 @@ const ALLOWED_OPTIONS = [
     "schurfun_par"
 ]
 
-_array(x::Matrix) = x
+# `SparseMatrixCSC` is returned in SumOfSquares.jl test `sos_horn`
+_array(x::AbstractMatrix) = x
 _array(x::Vector) = x
 _array(x::Float64) = [x]
 

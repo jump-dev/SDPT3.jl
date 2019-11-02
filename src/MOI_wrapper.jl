@@ -51,7 +51,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     free_Acon::Vector{Int}
     free_Aval::Vector{Float64}
 
-    objective_sign::Int
+    objective_sense::MOI.OptimizationSense
     objective_constant::Float64
 
     primal_objective_value::Float64
@@ -79,7 +79,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             Int[], Vector{Int}[], Vector{Float64}[], Vector{Int}[], Vector{Int}[], Vector{Float64}[],
             0, Int[], Int[], Float64[], Int[], Int[], Float64[],
             0, Int[], Float64[], Int[], Int[], Float64[],
-            1, 0.0,
+            MOI.FEASIBILITY_SENSE, 0.0,
             NaN, NaN,
             Float64[], Float64[], Vector{Float64}[], Vector{Float64}[], # X
             Float64[], # y
@@ -88,7 +88,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             nothing, NaN,
             false, Dict{Symbol, Any}())
         for (key, value) in kwargs
-            MOI.set(optimizer, MOI.RawParameter(key), value)
+            MOI.set(optimizer, MOI.RawParameter(string(key)), value)
         end
         return optimizer
     end
@@ -101,11 +101,11 @@ function MOI.set(optimizer::Optimizer, param::MOI.RawParameter, value)
     if !MOI.supports(optimizer, param)
         throw(MOI.UnsupportedAttribute(param))
     end
-    optimizer.options[param.name] = value
+    optimizer.options[Symbol(param.name)] = value
 end
 function MOI.get(optimizer::Optimizer, param::MOI.RawParameter)
     # TODO: This gives a poor error message if the name of the parameter is invalid.
-    return optimizer.options[param.name]
+    return optimizer.options[Symbol(param.name)]
 end
 
 MOI.supports(::Optimizer, ::MOI.Silent) = true
@@ -126,7 +126,7 @@ function MOI.is_empty(optimizer::Optimizer)
         iszero(optimizer.quad_dims) &&
         iszero(optimizer.num_nneg) &&
         iszero(optimizer.num_free) &&
-        isone(optimizer.objective_sign) &&
+        optimizer.objective_sense == MOI.FEASIBILITY_SENSE &&
         iszero(optimizer.objective_constant)
 end
 
@@ -164,7 +164,7 @@ function MOI.empty!(optimizer::Optimizer)
     empty!(optimizer.free_Acon)
     empty!(optimizer.free_Aval)
 
-    optimizer.objective_sign = 1
+    optimizer.objective_sense = MOI.FEASIBILITY_SENSE
     optimizer.objective_constant = 0.0
 
     optimizer.primal_objective_value = NaN
@@ -262,9 +262,13 @@ function MOI.add_constrained_variables(optimizer::Optimizer, set::SupportedSets)
 end
 
 # Objective
+function MOI.get(optimizer::Optimizer, ::MOI.ObjectiveSense)
+    return optimizer.objective_sense
+end
+sense_to_sign(sense::MOI.OptimizationSense) = sense == MOI.MAX_SENSE ? -1 : 1
 function MOI.set(optimizer::Optimizer, ::MOI.ObjectiveSense, sense::MOI.OptimizationSense)
-    sign = sense == MOI.MAX_SENSE ? -1 : 1
-    if sign != optimizer.objective_sign
+    if sense != optimizer.objective_sense
+        sign = sense_to_sign(sense)
         rmul!(optimizer.free_Cval, -1)
         rmul!(optimizer.nneg_Cval, -1)
         for i in eachindex(optimizer.quad_dims)
@@ -274,7 +278,7 @@ function MOI.set(optimizer::Optimizer, ::MOI.ObjectiveSense, sense::MOI.Optimiza
             rmul!(optimizer.psdc_Cval[i], -1)
         end
     end
-    optimizer.objective_sign = sign
+    optimizer.objective_sense = sense
 end
 function MOI.set(optimizer::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}},
                  func::MOI.ScalarAffineFunction{Float64})
@@ -291,21 +295,22 @@ function MOI.set(optimizer::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineF
         empty!(optimizer.psdc_Cvar[i])
         empty!(optimizer.psdc_Cval[i])
     end
+    sign = sense_to_sign(optimizer.objective_sense)
     for term in func.terms
         info = optimizer.variable_info[term.variable_index.value]
         if info.variable_type == FREE
             push!(optimizer.free_Cvar, info.index_in_cone)
-            push!(optimizer.free_Cval, optimizer.objective_sign * term.coefficient)
+            push!(optimizer.free_Cval, sign * term.coefficient)
         elseif info.variable_type == NNEG
             push!(optimizer.nneg_Cvar, info.index_in_cone)
-            push!(optimizer.nneg_Cval, optimizer.objective_sign * term.coefficient)
+            push!(optimizer.nneg_Cval, sign * term.coefficient)
         elseif info.variable_type == QUAD
             push!(optimizer.quad_Cvar[info.cone_index], info.index_in_cone)
-            push!(optimizer.quad_Cval[info.cone_index], optimizer.objective_sign * term.coefficient)
+            push!(optimizer.quad_Cval[info.cone_index], sign * term.coefficient)
         else
             @assert info.variable_type == PSD
             push!(optimizer.psdc_Cvar[info.cone_index], info.index_in_cone)
-            push!(optimizer.psdc_Cval[info.cone_index], optimizer.objective_sign * term.coefficient)
+            push!(optimizer.psdc_Cval[info.cone_index], sign * term.coefficient)
         end
     end
 end
@@ -351,6 +356,9 @@ function MOI.add_constraint(optimizer::Optimizer, func::MOI.ScalarAffineFunction
     return AFFEQ(con)
 end
 
+# TODO could do something more efficient here
+#      `SparseMatrixCSC` is returned in SumOfSquares.jl test `sos_horn`
+symvec(Q::SparseMatrixCSC) = symvec(Matrix(Q))
 function symvec(Q::Matrix)
     n = LinearAlgebra.checksquare(Q)
     vec_dim = MOI.dimension(MOI.PositiveSemidefiniteConeTriangle(n))
@@ -539,11 +547,13 @@ end
 MOI.get(::Optimizer, ::MOI.ResultCount) = 1
 function MOI.get(optimizer::Optimizer, attr::MOI.ObjectiveValue)
     MOI.check_result_index_bounds(optimizer, attr)
-    return optimizer.objective_sign * optimizer.primal_objective_value + optimizer.objective_constant
+    sign = sense_to_sign(optimizer.objective_sense)
+    return sign * optimizer.primal_objective_value + optimizer.objective_constant
 end
 function MOI.get(optimizer::Optimizer, attr::MOI.DualObjectiveValue)
     MOI.check_result_index_bounds(optimizer, attr)
-    return optimizer.objective_sign * optimizer.dual_objective_value + optimizer.objective_constant
+    sign = sense_to_sign(optimizer.objective_sense)
+    return sign * optimizer.dual_objective_value + optimizer.objective_constant
 end
 
 function MOI.get(optimizer::Optimizer, attr::MOI.VariablePrimal, vi::MOI.VariableIndex)

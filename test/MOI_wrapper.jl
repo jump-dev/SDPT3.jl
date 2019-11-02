@@ -26,7 +26,10 @@ const BRIDGED = MOIB.full_bridge_optimizer(CACHED, Float64)
 const CONFIG = MOIT.TestConfig(atol=1e-4, rtol=1e-4)
 
 @testset "Options" begin
-    param = MOI.RawParameter(:bad_option)
+    optimizer = SDPT3.Optimizer(printlevel = 1)
+    @test MOI.get(optimizer, MOI.RawParameter("printlevel")) == 1
+
+    param = MOI.RawParameter("bad_option")
     err = MOI.UnsupportedAttribute(param)
     @test_throws err SDPT3.Optimizer(bad_option = 1)
 end
