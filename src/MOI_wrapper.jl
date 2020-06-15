@@ -317,7 +317,7 @@ end
 
 # Constraints
 function is_diagonal_index(k)
-    # See https://www.juliaopt.org/MathOptInterface.jl/v0.9.3/apireference/#MathOptInterface.AbstractSymmetricMatrixSetTriangle
+    # See https://jump.dev/MathOptInterface.jl/v0.9.3/apireference/#MathOptInterface.AbstractSymmetricMatrixSetTriangle
     i = div(1 + isqrt(8k - 7), 2)
     j = k - div((i - 1) * i, 2)
     return i == j
