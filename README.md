@@ -26,3 +26,20 @@ but you first need to make sure that you satisfy the requirements of the
 [MATLAB.jl](https://github.com/JuliaInterop/MATLAB.jl) Julia package and that
 the SDPT3 software is installed in your
 [MATLAB™](http://www.mathworks.com/products/matlab/) installation.
+
+### Troubleshooting
+
+If you get the error:
+```
+Brace indexing is not supported for variables of this type.
+
+Error in validate
+
+Error in sdpt3 (line 171)
+   [blk,At,C,b,blkdim,numblk,parbarrier] = validate(blk,At,C,b,par,parbarrier);
+
+Error using save
+Variable 'jx_sdpt3_arg_out_1' not found.
+```
+It might means that you have added [SDPNAL](https://github.com/jump-dev/SDPNAL.jl) in addition to SDPT3 in the MATLAB's path (i.e. the `toolbox/local/pathdef.m` file).
+As SDPNAL also define a `validate` function, this makes `sdpt3` calls SDPNAL's `validate` function instead of SDPT3's `validate` function which causes the issue.
