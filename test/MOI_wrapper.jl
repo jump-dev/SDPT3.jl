@@ -36,8 +36,6 @@ end
 
 @testset "Unit" begin
     MOIT.unittest(BRIDGED, CONFIG, [
-        # Need MOI v0.9.5
-        "solve_result_index",
         # Get `termcode` -1, i.e. "relative gap < infeasibility".
         "solve_blank_obj",
         # Get `termcode` 3, i.e. "norm(X) or norm(Z) diverging".

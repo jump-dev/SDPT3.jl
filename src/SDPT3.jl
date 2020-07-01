@@ -36,7 +36,7 @@ const ALLOWED_OPTIONS = [
 # `SparseMatrixCSC` is returned in SumOfSquares.jl test `sos_horn`
 _array(x::AbstractMatrix) = x
 _array(x::Vector) = x
-_array(x::Float64) = [x]
+_array(x::Union{Float64, Complex{Float64}}) = [x]
 
 # TODO log in objective, OPTION, initial iterates X0, y0, Z0
 # Solve the primal/dual pair
@@ -44,9 +44,10 @@ _array(x::Float64) = [x]
 # s.t. Ax = b,   c - A'x ∈ K
 #       x ∈ K
 function sdpt3(blk::Matrix,
-               At::Vector{<:Union{Matrix{Float64}, SparseMatrixCSC{Float64}}},
-               C::Vector{<:Union{Matrix{Float64}, Vector{Float64}}},
-               b::Vector{Float64}; kws...)
+               At::Vector{<:Union{Matrix{<:Union{Float64, Complex{Float64}}},
+                                  SparseMatrixCSC{<:Union{Float64, Complex{Float64}}}}},
+               C::Vector{<:Union{Matrix{<:Union{Float64, Complex{Float64}}}, Vector{<:Union{Float64, Complex{Float64}}}}},
+               b::Vector{<:Union{Float64, Complex{Float64}}}; kws...)
                #C::Vector{<:Union{Vector{Float64}, SparseVector{Float64}}}, b::Vector{Float64})
     options = Dict{String, Any}(string(key) => value for (key, value) in kws)
     @assert all(i -> size(At[i], 2) == length(b), 1:length(At))
