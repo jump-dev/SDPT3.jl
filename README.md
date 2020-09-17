@@ -9,11 +9,11 @@ To use it with JuMP, simply do
 ```julia
 using JuMP
 using SDPT3
-model = Model(with_optimizer(SDPT3.Optimizer))
+model = Model(SDPT3.Optimizer)
 ```
 To suppress output, do
 ```julia
-model = Model(with_optimizer(SDPT3.Optimizer, printlevel=0))
+model = Model(optimizer_with_attributes(SDPT3.Optimizer, printlevel=0))
 ```
 
 ## Installation
