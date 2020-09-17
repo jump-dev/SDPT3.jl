@@ -29,6 +29,26 @@ the SDPT3 software is installed in your
 
 ### Troubleshooting
 
+#### SDPT3 not PATH
+
+If you get the error:
+```
+Error using save
+Variable 'jx_sdpt3_arg_out_1' not found.
+
+ERROR: LoadError: MATLAB.MEngineError("failed to get variable jx_sdpt3_arg_out_1 from MATLAB session")
+Stacktrace:
+ [1] get_mvariable(::MATLAB.MSession, ::Symbol) at /home/blegat/.julia/packages/MATLAB/cVrxc/src/engine.jl:164
+ [2] mxcall(::MATLAB.MSession, ::Symbol, ::Int64, ::Array{Any,2}, ::Vararg{Any,N} where N) at /home/blegat/.julia/packages/MATLAB/cVrxc/src/engine.jl:297
+ [3] mxcall at /home/blegat/.julia/packages/MATLAB/cVrxc/src/engine.jl:317 [inlined]
+ [4] sdpt3(::Array{Any,2}, ::Array{Array{Float64,2},1}, ::Array{Array{Float64,1},1}, ::Array{Float64,1}; kws::Base.Iterators.Pairs{Union{},Union{},Tuple{},NamedTuple{(),Tuple{}}}) at /home/blegat/.julia/dev/SDPT3/src/SDPT3.jl:57
+ [5] sdpt3(::Array{Any,2}, ::Array{Array{Float64,2},1}, ::Array{Array{Float64,1},1}, ::Array{Float64,1}) at /home/blegat/.julia/dev/SDPT3/src/SDPT3.jl:51
+```
+The error means that we try to find the `sdpt3` function with 1 output argument using the MATLAB C API but it wasn't found.
+This most likely means that you did not add SDPT3 to the MATLAB's path (i.e. the `toolbox/local/pathdef.m` file).
+
+#### Error in validate
+
 If you get the error:
 ```
 Brace indexing is not supported for variables of this type.
