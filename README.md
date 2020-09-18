@@ -29,7 +29,7 @@ the SDPT3 software is installed in your
 
 ### Troubleshooting
 
-#### SDPT3 not PATH
+#### SDPT3 not in PATH
 
 If you get the error:
 ```
