@@ -1,4 +1,4 @@
-The Polyhedra.jl package is licensed under the MIT "Expat" License:
+The SDPT3.jl package is licensed under the MIT "Expat" License:
 
 > Copyright (c) 2021: Benoît Legat.
 > 
