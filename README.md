@@ -47,6 +47,23 @@ Stacktrace:
 The error means that we try to find the `sdpt3` function with 1 output argument using the MATLAB C API but it wasn't found.
 This most likely means that you did not add SDPT3 to the MATLAB's path (i.e. the `toolbox/local/pathdef.m` file).
 
+If modifying `toolbox/local/pathdef.m` does not work, the following should work where `/path/to/sdpt3/` is the directory where the `sdpt3` folder is located:
+```julia
+julia> using MATLAB
+
+julia> cd("/path/to/sdpt3/") do
+           mat"install_sdpt3"
+       end
+```
+This should make `SDPT3.jl` work for the Julia session in which this is run.
+Alternatively, run
+```julia
+julia> mat"savepath"
+```
+to make `SDPT3.jl` work for future Julia sessions.
+
+An alternative fix is suggested in the [following issue](https://github.com/jump-dev/SDPT3.jl/issues/9#issuecomment-855509257).
+
 #### Error in validate
 
 If you get the error:
@@ -63,3 +80,14 @@ Variable 'jx_sdpt3_arg_out_1' not found.
 ```
 It might means that you have added [SDPNAL](https://github.com/jump-dev/SDPNAL.jl) in addition to SDPT3 in the MATLAB's path (i.e. the `toolbox/local/pathdef.m` file).
 As SDPNAL also define a `validate` function, this makes `sdpt3` calls SDPNAL's `validate` function instead of SDPT3's `validate` function which causes the issue.
+
+One way to fix this from the Julia REPL is to reset the search path to the factory-installed state using `restoredefaultpath`:
+```julia
+julia> using MATLAB
+
+julia> restoredefaultpath
+```
+For this to affect future Julia sessions, use
+```julia
+julia> mat"savepath"
+```
