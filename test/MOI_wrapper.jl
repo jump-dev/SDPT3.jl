@@ -2,7 +2,7 @@ using Test
 
 using MathOptInterface
 const MOI = MathOptInterface
-const MOIT = MOI.Test
+const MOIT = MOI.DeprecatedTest
 const MOIU = MOI.Utilities
 const MOIB = MOI.Bridges
 
@@ -14,22 +14,21 @@ MOI.set(OPTIMIZER, MOI.Silent(), true)
     @test MOI.get(OPTIMIZER, MOI.SolverName()) == "SDPT3"
 end
 
-@testset "supports_default_copy_to" begin
-    @test MOIU.supports_default_copy_to(OPTIMIZER, false)
-    @test !MOIU.supports_default_copy_to(OPTIMIZER, true)
+@testset "supports_incremental_interface" begin
+    @test MOI.supports_incremental_interface(OPTIMIZER)
 end
 
 # UniversalFallback is needed for starting values, even if they are ignored by SDPT3
 const CACHE = MOIU.UniversalFallback(MOIU.Model{Float64}())
 const CACHED = MOIU.CachingOptimizer(CACHE, OPTIMIZER)
 const BRIDGED = MOIB.full_bridge_optimizer(CACHED, Float64)
-const CONFIG = MOIT.TestConfig(atol=1e-4, rtol=1e-4)
+const CONFIG = MOIT.Config(atol=1e-4, rtol=1e-4)
 
 @testset "Options" begin
     optimizer = SDPT3.Optimizer(printlevel = 1)
-    @test MOI.get(optimizer, MOI.RawParameter("printlevel")) == 1
+    @test MOI.get(optimizer, MOI.RawOptimizerAttribute("printlevel")) == 1
 
-    param = MOI.RawParameter("bad_option")
+    param = MOI.RawOptimizerAttribute("bad_option")
     err = MOI.UnsupportedAttribute(param)
     @test_throws err SDPT3.Optimizer(bad_option = 1)
 end
@@ -75,11 +74,11 @@ end
 @testset "Continuous Conic" begin
     MOIT.contconictest(BRIDGED, CONFIG, [
         # `MOI.OTHER_ERROR`
-        "lin2f",
+        "lin2f", "geomean3v",
         # `MOI.NUMERICAL_ERROR`
         "lin4",
         # `ExponentialCone` and `PowerCone` not supported.
-        "exp", "dualexp", "pow", "dualpow", "logdet",
+        "exp", "dualexp", "pow", "dualpow", "logdet", "relentr",
         # `RootDetConeSquare` -> `RootDetConeTriangle` bridge missing.
         "rootdets"
     ])

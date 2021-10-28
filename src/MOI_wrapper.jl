@@ -87,23 +87,32 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             Dict{String, Any}(), Dict{String, Any}(),
             nothing, NaN,
             false, Dict{Symbol, Any}())
+        if !isempty(kwargs)
+            @warn("""Passing optimizer attributes as keyword arguments to
+            SDPT3.Optimizer is deprecated. Use
+                MOI.set(model, MOI.RawOptimizerAttribute("key"), value)
+            or
+                JuMP.set_optimizer_attribute(model, "key", value)
+            instead.
+            """)
+        end
         for (key, value) in kwargs
-            MOI.set(optimizer, MOI.RawParameter(string(key)), value)
+            MOI.set(optimizer, MOI.RawOptimizerAttribute(string(key)), value)
         end
         return optimizer
     end
 end
 
-function MOI.supports(optimizer::Optimizer, param::MOI.RawParameter)
+function MOI.supports(optimizer::Optimizer, param::MOI.RawOptimizerAttribute)
     return param.name in ALLOWED_OPTIONS
 end
-function MOI.set(optimizer::Optimizer, param::MOI.RawParameter, value)
+function MOI.set(optimizer::Optimizer, param::MOI.RawOptimizerAttribute, value)
     if !MOI.supports(optimizer, param)
         throw(MOI.UnsupportedAttribute(param))
     end
     optimizer.options[Symbol(param.name)] = value
 end
-function MOI.get(optimizer::Optimizer, param::MOI.RawParameter)
+function MOI.get(optimizer::Optimizer, param::MOI.RawOptimizerAttribute)
     # TODO: This gives a poor error message if the name of the parameter is invalid.
     return optimizer.options[Symbol(param.name)]
 end
@@ -115,7 +124,7 @@ end
 MOI.get(optimizer::Optimizer, ::MOI.Silent) = optimizer.silent
 
 MOI.get(::Optimizer, ::MOI.SolverName) = "SDPT3"
-function MOI.get(optimizer::Optimizer, ::MOI.SolveTime)
+function MOI.get(optimizer::Optimizer, ::MOI.SolveTimeSec)
     return optimizer.solve_time
 end
 
@@ -203,10 +212,10 @@ function MOI.supports_constraint(
     return true
 end
 
-function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike; kws...)
-    return MOIU.automatic_copy_to(dest, src; kws...)
+function MOI.copy_to(dest::Optimizer, src::MOI.ModelLike)
+    return MOIU.default_copy_to(dest, src)
 end
-MOIU.supports_default_copy_to(::Optimizer, copy_names::Bool) = !copy_names
+MOI.supports_incremental_interface(::Optimizer) = true
 
 # Variables
 function MOI.add_variable(optimizer::Optimizer)
@@ -297,7 +306,7 @@ function MOI.set(optimizer::Optimizer, ::MOI.ObjectiveFunction{MOI.ScalarAffineF
     end
     sign = sense_to_sign(optimizer.objective_sense)
     for term in func.terms
-        info = optimizer.variable_info[term.variable_index.value]
+        info = optimizer.variable_info[term.variable.value]
         if info.variable_type == FREE
             push!(optimizer.free_Cvar, info.index_in_cone)
             push!(optimizer.free_Cval, sign * term.coefficient)
@@ -332,7 +341,7 @@ function MOI.add_constraint(optimizer::Optimizer, func::MOI.ScalarAffineFunction
     push!(optimizer.b, MOI.constant(set))
     con = length(optimizer.b)
     for term in func.terms
-        info = optimizer.variable_info[term.variable_index.value]
+        info = optimizer.variable_info[term.variable.value]
         if info.variable_type == FREE
             push!(optimizer.free_Avar, info.index_in_cone)
             push!(optimizer.free_Acon, con)
@@ -515,7 +524,7 @@ function MOI.get(optimizer::Optimizer, ::MOI.TerminationStatus)
 end
 
 function MOI.get(optimizer::Optimizer, attr::MOI.PrimalStatus)
-    if attr.N > MOI.get(optimizer, MOI.ResultCount())
+    if attr.result_index > MOI.get(optimizer, MOI.ResultCount())
         return MOI.NO_SOLUTION
     end
     status = optimizer.status
@@ -530,7 +539,7 @@ function MOI.get(optimizer::Optimizer, attr::MOI.PrimalStatus)
 end
 
 function MOI.get(optimizer::Optimizer, attr::MOI.DualStatus)
-    if attr.N > MOI.get(optimizer, MOI.ResultCount())
+    if attr.result_index > MOI.get(optimizer, MOI.ResultCount())
         return MOI.NO_SOLUTION
     end
     status = optimizer.status
