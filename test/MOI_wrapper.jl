@@ -1,30 +1,31 @@
+module TestSDPT3
+
 using Test
-
 using MathOptInterface
-const MOI = MathOptInterface
-const MOIT = MOI.DeprecatedTest
-const MOIU = MOI.Utilities
-const MOIB = MOI.Bridges
-
 import SDPT3
-const OPTIMIZER = SDPT3.Optimizer()
-MOI.set(OPTIMIZER, MOI.Silent(), true)
 
-@testset "SolverName" begin
-    @test MOI.get(OPTIMIZER, MOI.SolverName()) == "SDPT3"
+const MOI = MathOptInterface
+
+function runtests()
+    for name in names(@__MODULE__; all = true)
+        if startswith("$(name)", "test_")
+            @testset "$(name)" begin
+                getfield(@__MODULE__, name)()
+            end
+        end
+    end
+    return
 end
 
-@testset "supports_incremental_interface" begin
-    @test MOI.supports_incremental_interface(OPTIMIZER)
+function test_solver_name()
+    @test MOI.get(SDPT3.Optimizer(), MOI.SolverName()) == "SDPT3"
 end
 
-# UniversalFallback is needed for starting values, even if they are ignored by SDPT3
-const CACHE = MOIU.UniversalFallback(MOIU.Model{Float64}())
-const CACHED = MOIU.CachingOptimizer(CACHE, OPTIMIZER)
-const BRIDGED = MOIB.full_bridge_optimizer(CACHED, Float64)
-const CONFIG = MOIT.Config(atol=1e-4, rtol=1e-4)
+function test_supports_incremental_interface()
+    @test MOI.supports_incremental_interface(SDPT3.Optimizer())
+end
 
-@testset "Options" begin
+function test_options()
     optimizer = SDPT3.Optimizer(printlevel = 1)
     @test MOI.get(optimizer, MOI.RawOptimizerAttribute("printlevel")) == 1
 
@@ -33,53 +34,69 @@ const CONFIG = MOIT.Config(atol=1e-4, rtol=1e-4)
     @test_throws err SDPT3.Optimizer(bad_option = 1)
 end
 
-@testset "Unit" begin
-    MOIT.unittest(BRIDGED, CONFIG, [
-        # Need MOI v0.9.5
-        "solve_result_index",
-        # Get `termcode` -1, i.e. "relative gap < infeasibility".
-        "solve_blank_obj",
-        # Get `termcode` 3, i.e. "norm(X) or norm(Z) diverging".
-        "solve_affine_equalto",
-        # Fails because there is no constraint.
-        "solve_unbounded_model",
-        # `TimeLimitSec` not supported.
-        "time_limit_sec",
-        # `NumberOfThreads` not supported.
-        "number_threads",
-        # Integer and ZeroOne sets are not supported
-        "solve_integer_edge_cases", "solve_objbound_edge_cases",
-        "solve_zero_one_with_bounds_1",
-        "solve_zero_one_with_bounds_2",
-        "solve_zero_one_with_bounds_3"])
+function test_runtests()
+    model = MOI.Utilities.CachingOptimizer(
+        MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
+        MOI.instantiate(SDPT3.Optimizer, with_bridge_type=Float64),
+    )
+    MOI.set(model, MOI.Silent(), true)
+    MOI.Test.runtests(
+        model,
+        MOI.Test.Config(
+            rtol = 1e-4,
+            atol = 1e-4,
+            exclude = Any[
+                MOI.NumberOfConstraints,
+                MOI.ListOfConstraintIndices,
+                MOI.ConstraintFunction,
+                MOI.ConstraintSet,
+                MOI.ConstraintBasisStatus,
+                MOI.VariableBasisStatus,
+                MOI.ConstraintName,
+                MOI.VariableName,
+                MOI.ObjectiveBound,
+            ],
+        ),
+        exclude = String[
+            # Expected test failures:
+            "test_attribute_SolverVersion",
+            # `NUMERICAL_ERROR`
+            "test_conic_linear_INFEASIBLE_2",
+            # `OTHER_ERROR`
+            "test_conic_linear_VectorAffineFunction_2",
+            #   ArgumentError: The number of constraints must be greater than 0
+            "test_attribute_RawStatusString",
+            "test_attribute_SolveTimeSec",
+            "test_objective_ObjectiveFunction_blank",
+            "test_solve_TerminationStatus_DUAL_INFEASIBLE",
+            ##   Problem is a nonconvex QP
+            "test_basic_ScalarQuadraticFunction_EqualTo",
+            "test_basic_ScalarQuadraticFunction_GreaterThan",
+            "test_basic_ScalarQuadraticFunction_Interval",
+            "test_basic_VectorQuadraticFunction_",
+            "test_quadratic_SecondOrderCone_basic",
+            "test_quadratic_nonconvex_",
+            ##   MathOptInterface.jl issue #1431
+            "test_model_LowerBoundAlreadySet",
+            "test_model_UpperBoundAlreadySet",
+            # FIXME
+            #  Expression: ≈(MOI.get(model, MOI.ConstraintPrimal(), c2), 0, atol = atol, rtol = rtol)
+            #  Evaluated: 1.7999998823840366 ≈ 0 (atol=0.0001, rtol=0.0001)
+            "test_linear_FEASIBILITY_SENSE",
+            # FIXME
+            #  Error using pretransfo (line 149)
+            #  Size b mismatch
+            "test_conic_SecondOrderCone_negative_post_bound_ii",
+            "test_conic_SecondOrderCone_negative_post_bound_iii",
+            "test_conic_SecondOrderCone_no_initial_bound",
+            # TODO investigate
+            "test_conic_GeometricMeanCone_VectorAffineFunction_2",
+            "test_conic_GeometricMeanCone_VectorOfVariables_2",
+        ],
+    )
+    return
 end
-@testset "Continuous Linear" begin
-    # See explanation in `MOI/test/Bridges/lazy_bridge_OPTIMIZER.jl`.
-    # This is to avoid `Variable.VectorizeBridge` which does not support
-    # `ConstraintSet` modification.
-    MOIB.remove_bridge(BRIDGED, MOIB.Constraint.ScalarSlackBridge{Float64})
-    MOIT.contlineartest(BRIDGED, CONFIG, String[
-        # Throws error: total dimension of C should be > length(b)
-        "linear15",
-        "partial_start"
-    ])
-end
-@testset "Continuous Quadratic" begin
-    MOIT.contquadratictest(BRIDGED, CONFIG, [
-        # Non-convex
-        "ncqcp",
-        # Quadratic function not strictly convex
-        "socp"])
-end
-@testset "Continuous Conic" begin
-    MOIT.contconictest(BRIDGED, CONFIG, [
-        # `MOI.OTHER_ERROR`
-        "lin2f", "geomean3v",
-        # `MOI.NUMERICAL_ERROR`
-        "lin4",
-        # `ExponentialCone` and `PowerCone` not supported.
-        "exp", "dualexp", "pow", "dualpow", "logdet", "relentr",
-        # `RootDetConeSquare` -> `RootDetConeTriangle` bridge missing.
-        "rootdets"
-    ])
-end
+
+end  # module
+
+TestSDPT3.runtests()
