@@ -72,8 +72,8 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
 
     silent::Bool
     options::Dict{Symbol, Any}
-    function Optimizer(; kwargs...)
-        optimizer = new(
+    function Optimizer()
+        return new(
             Float64[], VariableInfo[],
             Int[], Vector{Int}[], Vector{Float64}[], Vector{Int}[], Vector{Int}[], Vector{Float64}[],
             Int[], Vector{Int}[], Vector{Float64}[], Vector{Int}[], Vector{Int}[], Vector{Float64}[],
@@ -86,20 +86,8 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             Float64[], Float64[], Vector{Float64}[], Vector{Float64}[], # Z
             Dict{String, Any}(), Dict{String, Any}(),
             nothing, NaN,
-            false, Dict{Symbol, Any}())
-        if !isempty(kwargs)
-            @warn("""Passing optimizer attributes as keyword arguments to
-            SDPT3.Optimizer is deprecated. Use
-                MOI.set(model, MOI.RawOptimizerAttribute("key"), value)
-            or
-                JuMP.set_optimizer_attribute(model, "key", value)
-            instead.
-            """)
-        end
-        for (key, value) in kwargs
-            MOI.set(optimizer, MOI.RawOptimizerAttribute(string(key)), value)
-        end
-        return optimizer
+            false, Dict{Symbol, Any}(),
+        )
     end
 end
 
@@ -340,6 +328,9 @@ function MOI.add_constraint(optimizer::Optimizer, func::MOI.ScalarAffineFunction
     end
     push!(optimizer.b, MOI.constant(set))
     con = length(optimizer.b)
+    if isempty(func.terms)
+        throw(ArgumentError("SDPT3 does not support equality constraints with no term: 0 == $(MOI.constant(set))."))
+    end
     for term in func.terms
         info = optimizer.variable_info[term.variable.value]
         if info.variable_type == FREE
@@ -556,11 +547,15 @@ end
 MOI.get(::Optimizer, ::MOI.ResultCount) = 1
 function MOI.get(optimizer::Optimizer, attr::MOI.ObjectiveValue)
     MOI.check_result_index_bounds(optimizer, attr)
+    # FIXME For `INFEASIBILITY_CERTIFICATE`, SDPT3 just returns infinite values
+    # See https://github.com/jump-dev/MathOptInterface.jl/issues/1759
     sign = sense_to_sign(optimizer.objective_sense)
     return sign * optimizer.primal_objective_value + optimizer.objective_constant
 end
 function MOI.get(optimizer::Optimizer, attr::MOI.DualObjectiveValue)
     MOI.check_result_index_bounds(optimizer, attr)
+    # FIXME For `INFEASIBILITY_CERTIFICATE`, SDPT3 just returns infinite values
+    # See https://github.com/jump-dev/MathOptInterface.jl/issues/1759
     sign = sense_to_sign(optimizer.objective_sense)
     return sign * optimizer.dual_objective_value + optimizer.objective_constant
 end
