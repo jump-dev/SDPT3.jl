@@ -51,6 +51,9 @@ function sdpt3(blk::Matrix,
     options = Dict{String, Any}(string(key) => value for (key, value) in kws)
     @assert all(i -> size(At[i], 2) == length(b), 1:length(At))
     @assert length(At) == size(blk, 1)
+    if isempty(b)
+        throw(ArgumentError("SDPT3 does not support problems with no constraint."))
+    end
     #@assert all(i -> size(A[i], 1) == dim(blk[i, 1], blk[i, 2]), 1:length(A))
     #@assert all(i -> length(C[i], 1) == dim(blk[i, 1], blk[i, 2]), 1:length(A))
     # There are 6 output arguments so we use `6` below
