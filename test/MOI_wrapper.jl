@@ -38,16 +38,7 @@ end
 function test_runtests()
     model = MOI.Utilities.CachingOptimizer(
         MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
-        MOI.Bridges.full_bridge_optimizer(
-            MOI.Utilities.CachingOptimizer(
-                MOI.Utilities.UniversalFallback(MOI.Utilities.Model{Float64}()),
-                SDPT3.Optimizer(),
-            ),
-            Float64,
-        ),
-        # This does not work as with some modifications, the bridges with try
-        # getting `ConstraintFunction` which is not supported by SDPT3
-        #MOI.instantiate(SDPT3.Optimizer, with_bridge_type=Float64),
+        MOI.instantiate(SDPT3.Optimizer, with_bridge_type=Float64),
     )
     # `Variable.ZerosBridge` makes dual needed by some tests fail.
     MOI.Bridges.remove_bridge(model.optimizer, MathOptInterface.Bridges.Variable.ZerosBridge{Float64})
@@ -65,10 +56,6 @@ function test_runtests()
             ],
         ),
         exclude = String[
-            # Expected test failures:
-            #"test_attribute_SolverVersion",
-            # TODO Remove when https://github.com/jump-dev/MathOptInterface.jl/issues/1758 is fixed
-            "test_model_copy_to_UnsupportedAttribute",
             # `NUMERICAL_ERROR`
             "test_conic_linear_INFEASIBLE_2",
             "test_solve_DualStatus_INFEASIBILITY_CERTIFICATE_EqualTo_upper",
@@ -101,6 +88,13 @@ function test_runtests()
             "test_objective_ObjectiveFunction_blank",
             "test_objective_ObjectiveFunction_duplicate_terms",
             "test_solve_TerminationStatus_DUAL_INFEASIBLE",
+            # FIXME unexpectedly throws:
+            #   ArgumentError: SDPT3 does not support problems with no constraint.
+            "test_conic_SecondOrderCone_negative_initial_bound",
+            "test_conic_SecondOrderCone_negative_post_bound",
+            "test_conic_SecondOrderCone_negative_post_bound_2",
+            "test_conic_SecondOrderCone_negative_post_bound_3",
+            "test_conic_SecondOrderCone_nonnegative_initial_bound",
             # ArgumentError: SDPT3 does not support equality constraints with no term
             "test_linear_VectorAffineFunction_empty_row",
             "test_conic_PositiveSemidefiniteConeTriangle",
@@ -115,11 +109,13 @@ function test_runtests()
             "test_conic_SecondOrderCone_negative_post_bound_iii",
             "test_conic_SecondOrderCone_no_initial_bound",
             # TODO SDPT3 just returns an infinite ObjectiveValue
+            # See https://github.com/jump-dev/MathOptInterface.jl/issues/1759
             "test_unbounded_MIN_SENSE",
             "test_unbounded_MIN_SENSE_offset",
             "test_unbounded_MAX_SENSE",
             "test_unbounded_MAX_SENSE_offset",
             # TODO SDPT3 just returns an infinite DualObjectiveValue
+            # See https://github.com/jump-dev/MathOptInterface.jl/issues/1759
             "test_infeasible_MAX_SENSE",
             "test_infeasible_MAX_SENSE_offset",
             "test_infeasible_MIN_SENSE",
@@ -138,6 +134,22 @@ function test_runtests()
             # test_linear_DUAL_INFEASIBLE_2: Test Failed at /home/blegat/.julia/packages/MathOptInterface/IIN1o/src/Test/test_linear.jl:1514
             #  Expression: MOI.get(model, MOI.TerminationStatus()) == MOI.DUAL_INFEASIBLE || MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE_OR_UNBOUNDED
             "test_linear_DUAL_INFEASIBLE_2",
+            # FIXME
+            # Remove once
+            # https://github.com/jump-dev/MathOptInterface.jl/issues/1777
+            # is solved
+            "test_linear_LessThan_and_GreaterThan",
+            "test_linear_VectorAffineFunction",
+            "test_linear_integration_Interval",
+            "test_linear_modify_GreaterThan_and_LessThan_constraints",
+            "test_modification_const_vectoraffine_nonpos",
+            "test_modification_func_scalaraffine_lessthan",
+            "test_modification_set_scalaraffine_lessthan",
+            # FIXME
+            # Remove once
+            # https://github.com/jump-dev/MathOptInterface.jl/issues/1778
+            # is solved
+            "test_quadratic_duplicate_terms",
         ],
     )
     return
