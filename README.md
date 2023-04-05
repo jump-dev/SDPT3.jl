@@ -1,35 +1,52 @@
-# SDPT3
+# SDPT3.jl
 
-`SDPT3.jl` is an interface to the **[SDPT3](https://blog.nus.edu.sg/mattohkc/softwares/sdpt3/)**
-solver. It exports the `sdpt3` function that is a thin wrapper on top of the
-`sdpt3` MATLAB function and use it to define the `SDPT3.Optimizer` object that
-implements the solver-independent `MathOptInterface` API.
+[SDPT3.jl](https://github.com/jump-dev/SDPT3.jl) is wrapper for the
+[SDPT3](https://blog.nus.edu.sg/mattohkc/softwares/sdpt3) solver.
 
-To use it with JuMP, simply do
+The wrapper has two components:
+
+ * an exported `sdpt3` function that is a thin wrapper on top of the
+   `sdpt3` MATLAB function
+ * an interface to [MathOptInterface](https://github.com/jump-dev/MathOptInterface.jl)
+
+## Affiliation
+
+This wrapper is maintained by the JuMP community and is not an official wrapper
+of SDPT3.
+
+## License
+
+`SDPT3.jl` is licensed under the [MIT License](https://github.com/jump-dev/v.jl/blob/master/LICENSE.md).
+
+The underlying solver, [SDPT3](https://blog.nus.edu.sg/mattohkc/softwares/sdpt3/)
+is licensed under the [GPL v2 License](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html).
+
+In addition, SDPT3 requires an installation of MATLAB, which is a closed-source
+commercial product for which you must [obtain a license](https://www.mathworks.com/products/matlab.html).
+
+## Use with JuMP
+
+To use SDPT3 with [JuMP](https://github.com/jump-dev/JuMP.jl), do:
 ```julia
-using JuMP
-using SDPT3
+using JuMP, SDPT3
 model = Model(SDPT3.Optimizer)
-```
-To suppress output, do
-```julia
-model = Model(optimizer_with_attributes(SDPT3.Optimizer, printlevel=0))
+set_attribute(model, "printlevel", 0)
 ```
 
 ## Installation
 
-You can install `SDPT3.jl` through the Julia package manager:
-```julia
-] add SDPT3
-```
-but you first need to make sure that you satisfy the requirements of the
-[MATLAB.jl](https://github.com/JuliaInterop/MATLAB.jl) Julia package and that
-the SDPT3 software is installed in your
+First, make sure that you satisfy the requirements of the
+[MATLAB.jl](https://github.com/JuliaInterop/MATLAB.jl) Julia package, and that
+the SeDuMi software is installed in your
 [MATLAB™](http://www.mathworks.com/products/matlab/) installation.
 
-### Troubleshooting
+Then, install `SDPT3.jl` using `Pkg.add`:
+```julia
+import Pkg
+Pkg.add("SDPT3")
+```
 
-#### SDPT3 not in PATH
+### SDPT3 not in PATH
 
 If you get the error:
 ```
@@ -38,33 +55,27 @@ Variable 'jx_sdpt3_arg_out_1' not found.
 
 ERROR: LoadError: MATLAB.MEngineError("failed to get variable jx_sdpt3_arg_out_1 from MATLAB session")
 Stacktrace:
- [1] get_mvariable(::MATLAB.MSession, ::Symbol) at /home/blegat/.julia/packages/MATLAB/cVrxc/src/engine.jl:164
- [2] mxcall(::MATLAB.MSession, ::Symbol, ::Int64, ::Array{Any,2}, ::Vararg{Any,N} where N) at /home/blegat/.julia/packages/MATLAB/cVrxc/src/engine.jl:297
- [3] mxcall at /home/blegat/.julia/packages/MATLAB/cVrxc/src/engine.jl:317 [inlined]
- [4] sdpt3(::Array{Any,2}, ::Array{Array{Float64,2},1}, ::Array{Array{Float64,1},1}, ::Array{Float64,1}; kws::Base.Iterators.Pairs{Union{},Union{},Tuple{},NamedTuple{(),Tuple{}}}) at /home/blegat/.julia/dev/SDPT3/src/SDPT3.jl:57
- [5] sdpt3(::Array{Any,2}, ::Array{Array{Float64,2},1}, ::Array{Array{Float64,1},1}, ::Array{Float64,1}) at /home/blegat/.julia/dev/SDPT3/src/SDPT3.jl:51
+[...]
 ```
-The error means that we try to find the `sdpt3` function with 1 output argument using the MATLAB C API but it wasn't found.
-This most likely means that you did not add SDPT3 to the MATLAB's path (i.e. the `toolbox/local/pathdef.m` file).
+The error means that we could not find the `sdpt3` function with one output
+argument using the MATLAB C API. This most likely means that you did not add
+SDPT3 to the MATLAB's path (that is, the `toolbox/local/pathdef.m` file).
 
-If modifying `toolbox/local/pathdef.m` does not work, the following should work where `/path/to/sdpt3/` is the directory where the `sdpt3` folder is located:
+If modifying `toolbox/local/pathdef.m` does not work, the following should work,
+where `/path/to/sdpt3/` is the directory where the `sdpt3` folder is located:
 ```julia
 julia> using MATLAB
 
 julia> cd("/path/to/sdpt3/") do
-           mat"install_sdpt3"
+           MATLAB.mat"install_sdpt3"
        end
+
+julia> MATLAB.mat"savepath"
 ```
-This should make `SDPT3.jl` work for the Julia session in which this is run.
-Alternatively, run
-```julia
-julia> mat"savepath"
-```
-to make `SDPT3.jl` work for future Julia sessions.
 
 An alternative fix is suggested in the [following issue](https://github.com/jump-dev/SDPT3.jl/issues/9#issuecomment-855509257).
 
-#### Error in validate
+### Error in validate
 
 If you get the error:
 ```
@@ -78,16 +89,18 @@ Error in sdpt3 (line 171)
 Error using save
 Variable 'jx_sdpt3_arg_out_1' not found.
 ```
-It might means that you have added [SDPNAL](https://github.com/jump-dev/SDPNAL.jl) in addition to SDPT3 in the MATLAB's path (i.e. the `toolbox/local/pathdef.m` file).
-As SDPNAL also define a `validate` function, this makes `sdpt3` calls SDPNAL's `validate` function instead of SDPT3's `validate` function which causes the issue.
+It might mean that you have added [SDPNAL](https://github.com/jump-dev/SDPNAL.jl)
+in addition to SDPT3 in the MATLAB's path (that is, the `toolbox/local/pathdef.m`
+file). Because SDPNAL also defines a `validate` function, this can make `sdpt3`
+call SDPNAL's `validate` function instead of SDPT3's `validate` function, which
+causes the issue.
 
-One way to fix this from the Julia REPL is to reset the search path to the factory-installed state using `restoredefaultpath`:
+One way to fix this from the Julia REPL is to reset the search path to the
+factory-installed state using `restoredefaultpath`:
 ```julia
 julia> using MATLAB
 
-julia> restoredefaultpath
-```
-For this to affect future Julia sessions, use
-```julia
-julia> mat"savepath"
+julia> MATLAB.restoredefaultpath()
+
+julia> MATLAB.mat"savepath"
 ```
