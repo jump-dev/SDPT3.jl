@@ -16,7 +16,7 @@ of SDPT3.
 
 ## License
 
-`SDPT3.jl` is licensed under the [MIT License](https://github.com/jump-dev/v.jl/blob/master/LICENSE.md).
+`SDPT3.jl` is licensed under the [MIT License](https://github.com/jump-dev/SDPT3.jl/blob/master/LICENSE.md).
 
 The underlying solver, [SDPT3](https://blog.nus.edu.sg/mattohkc/softwares/sdpt3/)
 is licensed under the [GPL v2 License](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html).
